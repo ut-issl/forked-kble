@@ -24,3 +24,5 @@ tracing-subscriber.workspace = true
 clap.workspace = true
 notalawyer.workspace = true
 notalawyer-clap.workspace = true
+tmtc-c2a = "1.0.0"
+serde_json = "1.0.118"
