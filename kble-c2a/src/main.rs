@@ -34,7 +34,7 @@ enum Spacepacket {
     FromTcTf,
     /// Wrap Space Packet with AOS Transfer Frame (adhoc)
     ToAosTf {
-        #[clap(short, long, default_value = "0")]
+        #[clap(short, long)]
         satconfig: Option<PathBuf>,
     },
 }
@@ -76,16 +76,16 @@ async fn run_tfsync() -> Result<()> {
 async fn run_spacepacket(command: Spacepacket) -> Result<()> {
     match command {
         Spacepacket::FromTcTf => run_sp_from_tc_tf().await,
-        Spacepacket::ToAosTf { satconfig } => { 
+        Spacepacket::ToAosTf { satconfig } => {
             let satconfig = match satconfig {
                 Some(path) => {
                     let file = fs::OpenOptions::new().read(true).open(&path)?;
                     serde_json::from_reader(&file)?
-                },
+                }
                 None => None,
             };
             run_sp_to_aos_tf(&satconfig).await
-        },
+        }
     }
 }
 
