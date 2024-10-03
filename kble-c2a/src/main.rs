@@ -1,9 +1,12 @@
+use std::{fs, path::PathBuf};
+
 use anyhow::Result;
 use bytes::BytesMut;
 use clap::{Parser, Subcommand};
 use futures::{SinkExt, StreamExt};
 use kble_c2a::{spacepacket, tfsync};
 use notalawyer_clap::*;
+use tmtc_c2a::Satconfig;
 use tokio_util::codec::Decoder;
 use tracing_subscriber::{prelude::*, EnvFilter};
 
@@ -30,7 +33,10 @@ enum Spacepacket {
     /// Unwrap Space Packet from TC Transfer Frame (adhoc)
     FromTcTf,
     /// Wrap Space Packet with AOS Transfer Frame (adhoc)
-    ToAosTf,
+    ToAosTf {
+        #[clap(short, long)]
+        satconfig: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -70,7 +76,16 @@ async fn run_tfsync() -> Result<()> {
 async fn run_spacepacket(command: Spacepacket) -> Result<()> {
     match command {
         Spacepacket::FromTcTf => run_sp_from_tc_tf().await,
-        Spacepacket::ToAosTf => run_sp_to_aos_tf().await,
+        Spacepacket::ToAosTf { satconfig } => {
+            let satconfig = match satconfig {
+                Some(path) => {
+                    let file = fs::OpenOptions::new().read(true).open(&path)?;
+                    serde_json::from_reader(&file)?
+                }
+                None => None,
+            };
+            run_sp_to_aos_tf(&satconfig).await
+        }
     }
 }
 
@@ -86,14 +101,14 @@ async fn run_sp_from_tc_tf() -> Result<()> {
     Ok(())
 }
 
-async fn run_sp_to_aos_tf() -> Result<()> {
+async fn run_sp_to_aos_tf(satconfig: &Option<Satconfig>) -> Result<()> {
     let (mut tx, mut rx) = kble_socket::from_stdio().await;
     let mut frame_count = 0;
     loop {
         let Some(spacepacket) = rx.next().await else {
             break;
         };
-        let aos_tf = spacepacket::to_aos_tf(&mut frame_count, spacepacket?)?;
+        let aos_tf = spacepacket::to_aos_tf(&mut frame_count, spacepacket?, satconfig)?;
         tx.send(aos_tf.freeze()).await?;
     }
     Ok(())

@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use bytes::{Bytes, BytesMut};
+use tmtc_c2a::Satconfig;
 
 const TC_TF_PH_SIZE: usize = 5;
 const TC_SEG_HDR_SIZE: usize = 1;
@@ -34,7 +35,11 @@ const IDLE_PACKET_PH_EXCEPT_LEN: [u8; 4] = [
 const IDLE_PACKET_PH_LEN_SIZE: usize = 2;
 const AOS_TF_CLCW: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
 const AOS_TF_MAX_PACKET_SIZE: usize = AOS_TF_SIZE - 12;
-pub fn to_aos_tf(frame_count: &mut u32, spacepacket: Bytes) -> Result<BytesMut> {
+pub fn to_aos_tf(
+    frame_count: &mut u32,
+    spacepacket: Bytes,
+    satconfig: &Option<Satconfig>,
+) -> Result<BytesMut> {
     if spacepacket.len() > AOS_TF_MAX_PACKET_SIZE {
         return Err(anyhow!(
             "Space Packet is too large: {} bytes",
@@ -45,7 +50,16 @@ pub fn to_aos_tf(frame_count: &mut u32, spacepacket: Bytes) -> Result<BytesMut> 
     let mut aos_tf = BytesMut::with_capacity(AOS_TF_SIZE);
 
     // build AOS TF PH
-    aos_tf.extend_from_slice(&AOS_TF_PH_VN_SCID_VCID);
+    match satconfig {
+        Some(conf) => {
+            aos_tf.extend_from_slice(&[0b01]);
+            aos_tf.extend_from_slice(&[conf.aos_scid]);
+            aos_tf.extend_from_slice(&[0b00_0000]);
+        }
+        None => {
+            aos_tf.extend_from_slice(&AOS_TF_PH_VN_SCID_VCID);
+        }
+    }
     aos_tf.extend_from_slice(&(*frame_count << 8).to_be_bytes());
 
     // build M_PDU header
